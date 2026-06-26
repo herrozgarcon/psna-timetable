@@ -23,6 +23,8 @@ const Timetable = () => {
     const [selectedSectionView, setSelectedSectionView] = useState('A');
     const [isGenerated, setIsGenerated] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isLockMode, setIsLockMode] = useState(false);
+    const [lockedCells, setLockedCells] = useState({});
     const teachingSlotsCount = timeSlots ? timeSlots.filter(s => s.type !== 'break').length : 7;
     const availableSemesters = Array.from(new Set(subjects.map(s => s.semester))).filter(Boolean).sort();
     useEffect(() => {
@@ -141,6 +143,25 @@ const Timetable = () => {
                             });
                         }
                     });
+                });
+
+                const userFixedSlots = {};
+                Object.keys(lockedCells).forEach(key => {
+                    const [sec, dStr, sStr] = key.split('-');
+                    const d = parseInt(dStr);
+                    const slot = parseInt(sStr);
+                    if (grids[sec] && grids[sec][d] && grids[sec][d][slot]) {
+                        const cell = grids[sec][d][slot];
+                        if (!cell.isStart && (cell.isLab || cell.duration > 1)) return; 
+                        if (!userFixedSlots[sec]) userFixedSlots[sec] = {};
+                        const codes = String(cell.code).split('/').map(c => c.trim());
+                        codes.forEach(c => {
+                            if (!userFixedSlots[sec][c]) userFixedSlots[sec][c] = [];
+                            if (!userFixedSlots[sec][c].some(f => f.d === d && f.s === slot)) {
+                                userFixedSlots[sec][c].push({ d, s: slot, duration: cell.duration || 1 });
+                            }
+                        });
+                    }
                 });
 
                 for (let attempt = 0; attempt < 200; attempt++) {
@@ -366,12 +387,16 @@ const Timetable = () => {
                         }).map(sub => {
                             const subjectTeachers = teachers.filter(t => t.subjectCode === sub.code && t.section === section);
                             const names = subjectTeachers.map(t => t.name);
-                            return {
+                            const s = {
                                 ...sub,
                                 teacherName: names.length > 0 ? names.join(' / ') : 'TBA',
                                 // Inject per-section block so this lab strictly avoids THIS section's elective slots
                                 allTeachers: [...names, `BLOCK_ELECTIVE_${section}`]
                             };
+                            if (userFixedSlots[section] && userFixedSlots[section][s.code]) {
+                                s.fixedSlots = userFixedSlots[section][s.code];
+                            }
+                            return s;
                         });
                         if (labSubjects.length === 0) continue;
                         const labSyncElectives = {};
@@ -444,6 +469,9 @@ const Timetable = () => {
                                 };
                                 if (sectionFixedLabs[section] && sectionFixedLabs[section][s.code]) {
                                     s.fixedSlots = sectionFixedLabs[section][s.code];
+                                }
+                                if (userFixedSlots[section] && userFixedSlots[section][s.code]) {
+                                    s.fixedSlots = [...(s.fixedSlots || []), ...userFixedSlots[section][s.code]];
                                 }
                                 return s;
                             });
@@ -601,6 +629,16 @@ const Timetable = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
     const handleCellClick = (dIdx, sIdx, cell) => {
+        if (isLockMode) {
+            const key = `${selectedSectionView}-${dIdx}-${sIdx}`;
+            setLockedCells(prev => {
+                const newLocked = { ...prev };
+                if (newLocked[key]) delete newLocked[key];
+                else newLocked[key] = true;
+                return newLocked;
+            });
+            return;
+        }
         setEditingCell({ day: dIdx, slot: sIdx, section: selectedSectionView, cell });
         setEditValue(cell ? cell.code : '');
     };
@@ -1081,16 +1119,37 @@ const Timetable = () => {
                     <button className="btn-print" onClick={() => window.print()}><Printer size={18} /> Print Official</button>
                 </div>
             </div>
-            <div className="tabs-container">
-                {getSectionsForSemester(semester).map(sec => (
-                    <button
-                        key={sec}
-                        className={`tab-btn ${selectedSectionView === sec ? 'active' : ''}`}
-                        onClick={() => setSelectedSectionView(sec)}
-                    >
-                        Section {sec}
-                    </button>
-                ))}
+            <div className="tabs-container" style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    {getSectionsForSemester(semester).map(sec => (
+                        <button
+                            key={sec}
+                            className={`tab-btn ${selectedSectionView === sec ? 'active' : ''}`}
+                            onClick={() => setSelectedSectionView(sec)}
+                        >
+                            Section {sec}
+                        </button>
+                    ))}
+                </div>
+                
+                <button 
+                    style={{
+                        marginLeft: 'auto',
+                        background: isLockMode ? '#ef4444' : 'rgba(15, 23, 42, 0.05)',
+                        color: isLockMode ? 'white' : '#475569', border: isLockMode ? 'none' : '1px solid #cbd5e1', 
+                        padding: '0 16px', height: '38px', borderRadius: '8px',
+                        fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s'
+                    }}
+                    onClick={() => {
+                        const newMode = !isLockMode;
+                        setIsLockMode(newMode);
+                        if (!newMode) setLockedCells({});
+                    }}
+                >
+                    <Lock size={16} />
+                    {isLockMode ? 'Lock Mode: ON' : 'Lock Mode: OFF'}
+                </button>
             </div>
             {grids[selectedSectionView] ? (
                 <>
@@ -1154,10 +1213,13 @@ const Timetable = () => {
                                                 const isActuallyLab = isLab && !isInt;
                                                 const showDashed = isActuallyLab && cell && cell.isFixedFromWord;
                                                 const currentGridIndex = teachingSlotIndex - 1;
+                                                const cellKey = `${selectedSectionView}-${dIdx}-${currentGridIndex}`;
+                                                const isUserLocked = lockedCells[cellKey];
                                                 return (
                                                     <td key={`${dIdx}-${sIdx}`} className="cell-container">
                                                         <div
-                                                            className={`subject-card ${shouldShowGreen ? 'lab-box' : ''} ${showDashed ? 'lab-locked' : ''}`}
+                                                            className={`subject-card ${shouldShowGreen ? 'lab-box' : ''} ${showDashed ? 'lab-locked' : ''} ${isUserLocked ? 'user-locked' : ''}`}
+                                                            style={isUserLocked ? { border: '2px solid #ef4444' } : {}}
                                                             onClick={() => handleCellClick(dIdx, currentGridIndex, cell)}
                                                         >
                                                             {cell ? (

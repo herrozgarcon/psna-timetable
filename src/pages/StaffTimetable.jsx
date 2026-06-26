@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { loadFacultyTimetable } from '../services/timetablePersistence';
+import { loadFacultyTimetable, loadAllFacultyTimetables } from '../services/timetablePersistence';
 import { Calendar, Layers, Printer, UserCircle, Users, ChevronDown } from 'lucide-react';
 
 const DAYS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
@@ -9,6 +9,9 @@ const StaffTimetable = () => {
     const { teachers } = useData();
     const [selectedFaculty, setSelectedFaculty] = useState('');
     const [dbSchedule, setDbSchedule] = useState([]);
+    const [isPrintingAll, setIsPrintingAll] = useState(false);
+    const [allFacultyData, setAllFacultyData] = useState(null);
+    const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
     // Extract a unique, sorted list of all faculty members from the teachers list
     const allFaculty = useMemo(() => {
@@ -40,6 +43,40 @@ const StaffTimetable = () => {
         fetchFacultyTimetable();
         return () => { isMounted = false; };
     }, [selectedFaculty, teachers]);
+
+    const handlePrintAll = async () => {
+        setIsPreparingPrint(true);
+        try {
+            const data = await loadAllFacultyTimetables();
+            const grouped = {};
+            data.forEach(row => {
+                const fName = row.faculty_name;
+                if (!fName) return;
+                if (!grouped[fName]) {
+                    grouped[fName] = Array(6).fill(null).map(() => Array(7).fill(null));
+                }
+                if (grouped[fName][row.day]) {
+                    grouped[fName][row.day][row.period] = {
+                        displayCode: row.course_code,
+                        type: row.is_lab ? 'LAB' : 'REGULAR',
+                        semester: row.semester,
+                        section: row.section
+                    };
+                }
+            });
+            setAllFacultyData(grouped);
+            setIsPrintingAll(true);
+            setTimeout(() => {
+                window.print();
+                setIsPrintingAll(false);
+                setIsPreparingPrint(false);
+            }, 800);
+        } catch (error) {
+            console.error("Failed to prepare print:", error);
+            setIsPreparingPrint(false);
+            alert("Failed to prepare print document.");
+        }
+    };
 
     // Compute the selected faculty's personal timetable
     const mySchedule = useMemo(() => {
@@ -279,6 +316,9 @@ const StaffTimetable = () => {
                         }}>
                             <Printer size={18} /> Print
                         </button>
+                        <button className="btn-premium btn-print-all" onClick={handlePrintAll} disabled={isPreparingPrint} style={{ marginLeft: '10px', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Printer size={18} /> {isPreparingPrint ? 'Preparing...' : 'Print All'}
+                        </button>
                     </div>
                 </header>
 
@@ -337,7 +377,52 @@ const StaffTimetable = () => {
                 </div>
             </div>
 
-            {selectedFaculty && (
+            {isPrintingAll && allFacultyData ? (
+                <div className="print-only">
+                    {allFaculty.map((faculty, idx) => {
+                        const schedule = allFacultyData[faculty] || Array(6).fill(null).map(() => Array(7).fill(null));
+                        const hasClasses = schedule.some(dayRow => dayRow.some(cell => cell !== null));
+                        if (!hasClasses) return null;
+                        return (
+                            <div key={idx} style={{ pageBreakAfter: 'always', padding: '20px' }}>
+                                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                                    <h1 style={{ fontSize: '20px', margin: 0 }}>PSNA COLLEGE OF ENGINEERING AND TECHNOLOGY</h1>
+                                    <h2 style={{ fontSize: '16px', margin: '5px 0' }}>INDIVIDUAL FACULTY TIME TABLE</h2>
+                                    <p style={{ fontSize: '14px' }}>Faculty: {faculty.toUpperCase()}</p>
+                                </div>
+                                <table className="official-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Day</th>
+                                            <th>P1</th>
+                                            <th>P2</th>
+                                            <th style={{ width: '20px' }}>B</th>
+                                            <th>P3</th>
+                                            <th>P4</th>
+                                            <th style={{ width: '20px' }}>L</th>
+                                            <th>P5</th>
+                                            <th>P6</th>
+                                            <th>P7</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {DAYS.map((day, dIdx) => (
+                                            <tr key={day}>
+                                                <td style={{ fontWeight: 'bold' }}>{day.substring(0, 3)}</td>
+                                                {[0, 1].map(s => <td key={s}>{schedule[dIdx][s] ? schedule[dIdx][s].displayCode : ''}</td>)}
+                                                <td style={{ background: '#eee' }}></td>
+                                                {[2, 3].map(s => <td key={s}>{schedule[dIdx][s] ? schedule[dIdx][s].displayCode : ''}</td>)}
+                                                <td style={{ background: '#eee' }}></td>
+                                                {[4, 5, 6].map(s => <td key={s}>{schedule[dIdx][s] ? schedule[dIdx][s].displayCode : ''}</td>)}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : selectedFaculty && (
                 <div className="print-only">
                     <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                         <h1 style={{ fontSize: '20px', margin: 0 }}>PSNA COLLEGE OF ENGINEERING AND TECHNOLOGY</h1>

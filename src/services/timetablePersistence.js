@@ -114,6 +114,23 @@ export const loadFacultyTimetable = async (facultyId) => {
     }
 };
 
+export const loadAllFacultyTimetables = async () => {
+    try {
+        const { data, error } = await supabase
+            .from('general_timetable')
+            .select('*')
+            .not('faculty_id', 'is', null)
+            .order('day', { ascending: true })
+            .order('period', { ascending: true });
+
+        if (error) throw error;
+        return data;
+    } catch (err) {
+        console.error('[Persistence] Error loading all faculty timetables:', err);
+        return [];
+    }
+};
+
 export const deleteExistingTimetable = async (departmentId, academicYear, semester) => {
     try {
         const { error: genError } = await supabase
