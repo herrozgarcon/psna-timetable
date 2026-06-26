@@ -25,6 +25,7 @@ const Timetable = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isLockMode, setIsLockMode] = useState(false);
     const [lockedCells, setLockedCells] = useState({});
+    const [isPrintingAll, setIsPrintingAll] = useState(false);
     const teachingSlotsCount = timeSlots ? timeSlots.filter(s => s.type !== 'break').length : 7;
     const availableSemesters = Array.from(new Set(subjects.map(s => s.semester))).filter(Boolean).sort();
     useEffect(() => {
@@ -747,6 +748,220 @@ const Timetable = () => {
         link.click();
         document.body.removeChild(link);
     };
+
+    const handlePrintAll = () => {
+        setIsPrintingAll(true);
+        setTimeout(() => {
+            window.print();
+            setIsPrintingAll(false);
+        }, 800);
+    };
+
+    const renderPrintContent = (currentGrid, currentSemester, sectionKey, printIdx) => {
+        const placedCodes = new Set();
+        currentGrid.flat().forEach(c => {
+            if (c) {
+                if (c.code.includes('/')) c.code.split('/').forEach(p => placedCodes.add(p.trim()));
+                else placedCodes.add(c.code);
+            }
+        });
+        const sectionSubjects = subjects.filter(s => s.semester === currentSemester);
+        const uniqueSubjectList = sectionSubjects.map(sub => {
+            const sectionTeachers = teachers.filter(t => t.subjectCode === sub.code && t.section === sectionKey);
+            const teacherNames = sectionTeachers.length > 0 ? sectionTeachers.map(t => t.name).join(', ') : '';
+            const dept = sectionTeachers.length > 0 ? sectionTeachers[0].dept : 'CSE';
+            const acronym = sub.name.split(/[\s-]+/)
+                .filter(w => w.length > 0 && w !== 'and' && w !== 'of')
+                .map(w => w[0].toUpperCase())
+                .join('')
+                .substring(0, 6);
+            return {
+                code: sub.code,
+                name: sub.name,
+                acronym: acronym,
+                staff: teacherNames || '',
+                dept: dept || 'CSE',
+                hoursW: sub.credit || 0,
+                hoursS: sub.satCount || 0
+            };
+        });
+        uniqueSubjectList.sort((a, b) => a.code.localeCompare(b.code));
+        const renderPrintCell = (cell) => {
+            if (!cell) return '';
+            if (cell.code.includes('/')) {
+                const codes = cell.code.split('/');
+                return codes.map((c, i) => (
+                    <div key={i} style={{ borderBottom: i < codes.length - 1 ? '1px solid black' : 'none', fontSize: '10pt', fontWeight: 'bold' }}>
+                        {c.trim()}
+                    </div>
+                ));
+            }
+            return <div style={{ fontWeight: 'bold', fontSize: '10pt' }}>{cell.code}</div>;
+        };
+        const parseSemesterNumber = (semStr) => {
+            const s = String(semStr).toUpperCase();
+            if (s.includes('VIII') || s.includes('8')) return 8;
+            if (s.includes('VII') || s.includes('7')) return 7;
+            if (s.includes('VI') || s.includes('6')) return 6;
+            if (s.includes('IV') || s.includes('4')) return 4;
+            if (s.includes('V') || s.includes('5')) return 5;
+            if (s.includes('III') || s.includes('3')) return 3;
+            if (s.includes('II') || s.includes('2')) return 2;
+            if (s.includes('I') || s.includes('1')) return 1;
+            return 1;
+        };
+        const semNum = parseSemesterNumber(currentSemester);
+        let maxSlots = 7;
+        if (currentGrid) {
+            currentGrid.forEach(dayRow => {
+                for (let i = dayRow.length - 1; i >= 0; i--) {
+                    if (dayRow[i]) {
+                        if (i + 1 > maxSlots) maxSlots = i + 1;
+                        break;
+                    }
+                }
+            });
+        }
+        if (maxSlots > 8) maxSlots = 8;
+        
+        return (
+            <div key={sectionKey} style={{ pageBreakAfter: 'always', padding: '20px' }}>
+                <div className="print-header">
+                    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 80px', alignItems: 'center', marginBottom: '10px' }}>
+                        <div><img src="https://upload.wikimedia.org/wikipedia/en/e/eb/Psna_cet_logo.png" alt="Logo" style={{ width: '80px', height: 'auto' }} /></div>
+                        <div style={{ textAlign: 'center' }}>
+                            <h1 style={{ fontSize: '18pt', fontWeight: '900', margin: '0', textTransform: 'uppercase', color: 'black' }}>PSNA COLLEGE OF ENGINEERING AND TECHNOLOGY</h1>
+                            <h2 style={{ fontSize: '10pt', fontWeight: 'normal', margin: '5px 0 0 0', fontStyle: 'italic', color: 'black' }}>(An Autonomous Institution, Affiliated to Anna University, Chennai)</h2>
+                            <h3 style={{ fontSize: '14pt', fontWeight: 'bold', margin: '10px 0 0 0', textDecoration: 'underline', textTransform: 'uppercase', color: 'black' }}>CLASS TIME TABLE</h3>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}><img src="https://upload.wikimedia.org/wikipedia/en/e/eb/Psna_cet_logo.png" alt="IQAC" style={{ width: '60px', opacity: 0.5 }} /></div>
+                    </div>
+                </div>
+                <div className="meta-grid" style={{ borderBottom: '1px solid black', paddingBottom: '5px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '11pt', fontWeight: 'bold' }}>
+                    <div style={{ flex: 1 }}>
+                        <div>Dept.: {department || 'CSE'}</div>
+                        <div>Sem & Sec.: {currentSemester} - {sectionKey}</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div>Academic Year: 2025-2026 {semNum % 2 !== 0 ? 'ODD' : 'EVEN'}</div>
+                        <div>Semester: {currentSemester}</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'right' }}>
+                        <div>Course: B.E.</div>
+                        <div>Hall No.: _____</div>
+                    </div>
+                </div>
+                <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '10pt' }}>
+                    <thead>
+                        <tr>
+                            <th rowSpan={2} style={{ width: '40px', border: '1px solid black' }}>
+                                <div style={{ position: 'relative', height: '40px', width: '100%' }}>
+                                    <span style={{ position: 'absolute', top: '2px', right: '2px' }}>Time</span>
+                                    <span style={{ position: 'absolute', bottom: '2px', left: '2px' }}>Day</span>
+                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
+                                        <line x1="0" y1="0" x2="100%" y2="100%" stroke="black" strokeWidth="1" />
+                                    </svg>
+                                </div>
+                            </th>
+                            {maxSlots >= 1 && <th style={{ border: '1px solid black' }}>08.40 AM<br />-<br />09.30 AM</th>}
+                            {maxSlots >= 2 && <th style={{ border: '1px solid black' }}>09.30 AM<br />-<br />10.20 AM</th>}
+                            {maxSlots >= 3 && <th rowSpan={2} style={{ width: '20px', fontSize: '8pt', padding: 0, border: '1px solid black' }}>
+                                <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', width: '100%', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>TEA BREAK</div>
+                            </th>}
+                            {maxSlots >= 3 && <th style={{ border: '1px solid black' }}>10.40 AM<br />-<br />11.30 AM</th>}
+                            {maxSlots >= 4 && <th style={{ border: '1px solid black' }}>11.30 AM<br />-<br />12.20 PM</th>}
+                            {maxSlots >= 5 && <th rowSpan={2} style={{ width: '30px', fontSize: '8pt', padding: 0, border: '1px solid black' }}>
+                                <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', width: '100%', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>LUNCH BREAK</div>
+                            </th>}
+                            {maxSlots >= 5 && <th style={{ border: '1px solid black' }}>01.25 PM<br />-<br />02.10 PM</th>}
+                            {maxSlots >= 6 && <th style={{ border: '1px solid black' }}>02.10 PM<br />-<br />02.55 PM</th>}
+                            {maxSlots >= 7 && <th rowSpan={2} style={{ width: '20px', fontSize: '8pt', padding: 0, border: '1px solid black' }}>
+                                <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', width: '100%', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>TEA BREAK</div>
+                            </th>}
+                            {maxSlots >= 7 && <th style={{ border: '1px solid black' }}>03.10 PM<br />-<br />03.55 PM</th>}
+                            {maxSlots >= 8 && <th style={{ border: '1px solid black' }}>03.55 PM<br />-<br />04.40 PM</th>}
+                        </tr>
+                        <tr>
+                            {maxSlots >= 1 && <th style={{ border: '1px solid black' }}>1</th>}
+                            {maxSlots >= 2 && <th style={{ border: '1px solid black' }}>2</th>}
+                            {maxSlots >= 3 && <th style={{ border: '1px solid black' }}>3</th>}
+                            {maxSlots >= 4 && <th style={{ border: '1px solid black' }}>4</th>}
+                            {maxSlots >= 5 && <th style={{ border: '1px solid black' }}>5</th>}
+                            {maxSlots >= 6 && <th style={{ border: '1px solid black' }}>6</th>}
+                            {maxSlots >= 7 && <th style={{ border: '1px solid black' }}>7</th>}
+                            {maxSlots >= 8 && <th style={{ border: '1px solid black' }}>8</th>}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {DAYS.map((day, dIdx) => (
+                            <tr key={dIdx}>
+                                <td style={{ fontWeight: 'bold', border: '1px solid black', textAlign: 'center' }}>{day.substring(0, 3)}</td>
+                                {maxSlots >= 1 && <td style={{ height: '50px', border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][0])}</td>}
+                                {maxSlots >= 2 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][1])}</td>}
+                                {maxSlots >= 3 && dIdx === 0 && <td rowSpan={6} style={{ background: '#f0f0f0', fontSize: '8pt', textAlign: 'center', border: '1px solid black', verticalAlign: 'middle', padding: 0 }}><div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Tea Break</div></td>}
+                                {maxSlots >= 3 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][2])}</td>}
+                                {maxSlots >= 4 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][3])}</td>}
+                                {maxSlots >= 5 && dIdx === 0 && <td rowSpan={6} style={{ background: '#f0f0f0', fontSize: '8pt', textAlign: 'center', border: '1px solid black', verticalAlign: 'middle', padding: 0 }}><div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Lunch Break</div></td>}
+                                {maxSlots >= 5 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][4])}</td>}
+                                {maxSlots >= 6 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][5])}</td>}
+                                {maxSlots >= 7 && dIdx === 0 && <td rowSpan={6} style={{ background: '#f0f0f0', fontSize: '8pt', textAlign: 'center', border: '1px solid black', verticalAlign: 'middle', padding: 0 }}><div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Tea Break</div></td>}
+                                {maxSlots >= 7 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][6])}</td>}
+                                {maxSlots >= 8 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][7])}</td>}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <table className="print-footer-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '10pt' }}>
+                    <thead>
+                        <tr style={{ background: '#f0f0f0' }}>
+                            <th style={{ border: '1px solid black', width: '40px', padding: '5px' }}>Sl.No</th>
+                            <th style={{ border: '1px solid black', padding: '5px' }}>Sub. Code</th>
+                            <th style={{ border: '1px solid black', padding: '5px' }}>Sub. Acronym</th>
+                            <th style={{ border: '1px solid black', padding: '5px' }}>Sub. Name</th>
+                            <th style={{ border: '1px solid black', width: '40px', padding: '5px', textAlign: 'center' }}>
+                                Hours<br /><div style={{ display: 'flex', borderTop: '1px solid black', marginTop: '2px' }}><div style={{ flex: 1, borderRight: '1px solid black' }}>W</div><div style={{ flex: 1 }}>S</div></div>
+                            </th>
+                            <th style={{ border: '1px solid black', padding: '5px' }}>Faculty Name</th>
+                            <th style={{ border: '1px solid black', width: '50px', padding: '5px' }}>Dept.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {uniqueSubjectList.map((item, idx) => (
+                            <tr key={idx}>
+                                <td style={{ border: '1px solid black', textAlign: 'center', padding: '4px' }}>{idx + 1}</td>
+                                <td style={{ border: '1px solid black', fontWeight: 'bold', padding: '4px', textAlign: 'center' }}>{item.code}</td>
+                                <td style={{ border: '1px solid black', textAlign: 'center', padding: '4px' }}>{item.acronym}</td>
+                                <td style={{ border: '1px solid black', padding: '4px' }}>{item.name}</td>
+                                <td style={{ border: '1px solid black', padding: '0' }}>
+                                    <div style={{ display: 'flex', height: '100%' }}>
+                                        <div style={{ flex: 1, borderRight: '1px solid black', textAlign: 'center', padding: '4px' }}>{item.hoursW}</div>
+                                        <div style={{ flex: 1, textAlign: 'center', padding: '4px' }}>{item.hoursS}</div>
+                                    </div>
+                                </td>
+                                <td style={{ border: '1px solid black', padding: '4px' }}>{item.staff}</td>
+                                <td style={{ border: '1px solid black', textAlign: 'center', padding: '4px' }}>{item.dept}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-between', padding: '0 20px', fontWeight: 'bold', fontSize: '11pt' }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div>Dept. TT I/C</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div>HOD</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div>TT Convener</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div>PRINCIPAL</div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="timetable-page">
             <style>{`
@@ -1117,6 +1332,7 @@ const Timetable = () => {
                     <button className="icon-btn" title="Download Word" onClick={handleExportWord}><Download size={20} /></button>
                     <button className="icon-btn" title="Download Excel" onClick={handleExportExcel}><FileSpreadsheet size={20} /></button>
                     <button className="btn-print" onClick={() => window.print()}><Printer size={18} /> Print Official</button>
+                    <button className="btn-print" onClick={handlePrintAll} style={{ marginLeft: '10px', background: '#3b82f6', borderColor: '#3b82f6', color: 'white' }}><Printer size={18} /> Print All</button>
                 </div>
             </div>
             <div className="tabs-container" style={{ display: 'flex', alignItems: 'center' }}>
@@ -1482,204 +1698,14 @@ const Timetable = () => {
             )}
             {/* PRINT OFFICIAL VIEW */}
             <div className="print-container">
-                {grids[selectedSectionView] && (() => {
-                    const currentGrid = grids[selectedSectionView];
-                    const placedCodes = new Set();
-                    currentGrid.flat().forEach(c => {
-                        if (c) {
-                            if (c.code.includes('/')) c.code.split('/').forEach(p => placedCodes.add(p.trim()));
-                            else placedCodes.add(c.code);
-                        }
-                    });
-                    const sectionSubjects = subjects.filter(s => s.semester === semester);
-                    const uniqueSubjectList = sectionSubjects.map(sub => {
-                        const sectionTeachers = teachers.filter(t => t.subjectCode === sub.code && t.section === selectedSectionView);
-                        const teacherNames = sectionTeachers.length > 0 ? sectionTeachers.map(t => t.name).join(', ') : '';
-                        const dept = sectionTeachers.length > 0 ? sectionTeachers[0].dept : 'CSE';
-                        const acronym = sub.name.split(/[\s-]+/)
-                            .filter(w => w.length > 0 && w !== 'and' && w !== 'of')
-                            .map(w => w[0].toUpperCase())
-                            .join('')
-                            .substring(0, 6);
-                        return {
-                            code: sub.code,
-                            name: sub.name,
-                            acronym: acronym,
-                            staff: teacherNames || '',
-                            dept: dept || 'CSE',
-                            hoursW: sub.credit || 0,
-                            hoursS: sub.satCount || 0
-                        };
-                    });
-                    uniqueSubjectList.sort((a, b) => a.code.localeCompare(b.code));
-                    const renderPrintCell = (cell) => {
-                        if (!cell) return '';
-                        if (cell.code.includes('/')) {
-                            const codes = cell.code.split('/');
-                            return codes.map((c, i) => (
-                                <div key={i} style={{ borderBottom: i < codes.length - 1 ? '1px solid black' : 'none', fontSize: '10pt', fontWeight: 'bold' }}>
-                                    {c.trim()}
-                                </div>
-                            ));
-                        }
-                        return <div style={{ fontWeight: 'bold', fontSize: '10pt' }}>{cell.code}</div>;
-                    };
-                    const semNum = parseInt(semester.replace(/\D/g, '')) || 1;
-                    const year = Math.ceil(semNum / 2);
-                    const yearRoman = ['I', 'II', 'III', 'IV'][year - 1] || 'I';
-                    return (
-                        <>
-                            <div className="print-header">
-                                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 80px', alignItems: 'center', marginBottom: '10px' }}>
-                                    <div><img src="https://upload.wikimedia.org/wikipedia/en/e/eb/Psna_cet_logo.png" alt="Logo" style={{ width: '80px', height: 'auto' }} /></div>
-                                    <div style={{ textAlign: 'center' }}>
-                                        <h1 style={{ fontSize: '18pt', fontWeight: '900', margin: '0', textTransform: 'uppercase', color: 'black' }}>PSNA COLLEGE OF ENGINEERING AND TECHNOLOGY</h1>
-                                        <h2 style={{ fontSize: '10pt', fontWeight: 'normal', margin: '5px 0 0 0', fontStyle: 'italic', color: 'black' }}>(An Autonomous Institution, Affiliated to Anna University, Chennai)</h2>
-                                        <h3 style={{ fontSize: '14pt', fontWeight: 'bold', margin: '10px 0 0 0', textDecoration: 'underline', textTransform: 'uppercase', color: 'black' }}>CLASS TIME TABLE</h3>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'center' }}><img src="https://upload.wikimedia.org/wikipedia/en/e/eb/Psna_cet_logo.png" alt="IQAC" style={{ width: '60px', opacity: 0.5 }} /></div>
-                                </div>
-                            </div>
-                            <div className="meta-grid" style={{ borderBottom: '1px solid black', paddingBottom: '5px', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '11pt', fontWeight: 'bold' }}>
-                                <div style={{ flex: 1 }}>
-                                    <div>Dept.: {department || 'CSE'}</div>
-                                    <div>Year & Sec.: {yearRoman} - {selectedSectionView}</div>
-                                </div>
-                                <div style={{ flex: 1, textAlign: 'center' }}>
-                                    <div>Academic Year: 2025-2026 {semNum % 2 !== 0 ? 'ODD' : 'EVEN'}</div>
-                                    <div>Semester: {semester}</div>
-                                </div>
-                                <div style={{ flex: 1, textAlign: 'right' }}>
-                                    <div>Course: B.E.</div>
-                                    <div>Hall No.: _____</div>
-                                </div>
-                            </div>
-                            {(() => {
-                                let maxSlots = 7;
-                                if (currentGrid) {
-                                    currentGrid.forEach(dayRow => {
-                                        for (let i = dayRow.length - 1; i >= 0; i--) {
-                                            if (dayRow[i]) {
-                                                if (i + 1 > maxSlots) maxSlots = i + 1;
-                                                break;
-                                            }
-                                        }
-                                    });
-                                }
-                                if (maxSlots > 8) maxSlots = 8;
-                                return (
-                                    <table className="print-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '10pt' }}>
-                                        <thead>
-                                            <tr>
-                                                <th rowSpan={2} style={{ width: '40px', border: '1px solid black' }}>
-                                                    <div style={{ position: 'relative', height: '40px', width: '100%' }}>
-                                                        <span style={{ position: 'absolute', top: '2px', right: '2px' }}>Time</span>
-                                                        <span style={{ position: 'absolute', bottom: '2px', left: '2px' }}>Day</span>
-                                                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                                                            <line x1="0" y1="0" x2="100%" y2="100%" stroke="black" strokeWidth="1" />
-                                                        </svg>
-                                                    </div>
-                                                </th>
-                                                {maxSlots >= 1 && <th style={{ border: '1px solid black' }}>08.40 AM<br />-<br />09.30 AM</th>}
-                                                {maxSlots >= 2 && <th style={{ border: '1px solid black' }}>09.30 AM<br />-<br />10.20 AM</th>}
-                                                {maxSlots >= 3 && <th rowSpan={2} style={{ width: '20px', fontSize: '8pt', padding: 0, border: '1px solid black' }}>
-                                                    <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', width: '100%', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>TEA BREAK</div>
-                                                </th>}
-                                                {maxSlots >= 3 && <th style={{ border: '1px solid black' }}>10.40 AM<br />-<br />11.30 AM</th>}
-                                                {maxSlots >= 4 && <th style={{ border: '1px solid black' }}>11.30 AM<br />-<br />12.20 PM</th>}
-                                                {maxSlots >= 5 && <th rowSpan={2} style={{ width: '30px', fontSize: '8pt', padding: 0, border: '1px solid black' }}>
-                                                    <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', width: '100%', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>LUNCH BREAK</div>
-                                                </th>}
-                                                {maxSlots >= 5 && <th style={{ border: '1px solid black' }}>01.25 PM<br />-<br />02.10 PM</th>}
-                                                {maxSlots >= 6 && <th style={{ border: '1px solid black' }}>02.10 PM<br />-<br />02.55 PM</th>}
-                                                {maxSlots >= 7 && <th rowSpan={2} style={{ width: '20px', fontSize: '8pt', padding: 0, border: '1px solid black' }}>
-                                                    <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', width: '100%', height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>TEA BREAK</div>
-                                                </th>}
-                                                {maxSlots >= 7 && <th style={{ border: '1px solid black' }}>03.10 PM<br />-<br />03.55 PM</th>}
-                                                {maxSlots >= 8 && <th style={{ border: '1px solid black' }}>03.55 PM<br />-<br />04.40 PM</th>}
-                                            </tr>
-                                            <tr>
-                                                {maxSlots >= 1 && <th style={{ border: '1px solid black' }}>1</th>}
-                                                {maxSlots >= 2 && <th style={{ border: '1px solid black' }}>2</th>}
-                                                {maxSlots >= 3 && <th style={{ border: '1px solid black' }}>3</th>}
-                                                {maxSlots >= 4 && <th style={{ border: '1px solid black' }}>4</th>}
-                                                {maxSlots >= 5 && <th style={{ border: '1px solid black' }}>5</th>}
-                                                {maxSlots >= 6 && <th style={{ border: '1px solid black' }}>6</th>}
-                                                {maxSlots >= 7 && <th style={{ border: '1px solid black' }}>7</th>}
-                                                {maxSlots >= 8 && <th style={{ border: '1px solid black' }}>8</th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {DAYS.map((day, dIdx) => (
-                                                <tr key={dIdx}>
-                                                    <td style={{ fontWeight: 'bold', border: '1px solid black', textAlign: 'center' }}>{day.substring(0, 3)}</td>
-                                                    {maxSlots >= 1 && <td style={{ height: '50px', border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][0])}</td>}
-                                                    {maxSlots >= 2 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][1])}</td>}
-                                                    {maxSlots >= 3 && dIdx === 0 && <td rowSpan={6} style={{ background: '#f0f0f0', fontSize: '8pt', textAlign: 'center', border: '1px solid black', verticalAlign: 'middle', padding: 0 }}><div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Tea Break</div></td>}
-                                                    {maxSlots >= 3 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][2])}</td>}
-                                                    {maxSlots >= 4 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][3])}</td>}
-                                                    {maxSlots >= 5 && dIdx === 0 && <td rowSpan={6} style={{ background: '#f0f0f0', fontSize: '8pt', textAlign: 'center', border: '1px solid black', verticalAlign: 'middle', padding: 0 }}><div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Lunch Break</div></td>}
-                                                    {maxSlots >= 5 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][4])}</td>}
-                                                    {maxSlots >= 6 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][5])}</td>}
-                                                    {maxSlots >= 7 && dIdx === 0 && <td rowSpan={6} style={{ background: '#f0f0f0', fontSize: '8pt', textAlign: 'center', border: '1px solid black', verticalAlign: 'middle', padding: 0 }}><div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Tea Break</div></td>}
-                                                    {maxSlots >= 7 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][6])}</td>}
-                                                    {maxSlots >= 8 && <td style={{ border: '1px solid black', textAlign: 'center' }}>{renderPrintCell(currentGrid[dIdx][7])}</td>}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                );
-                            })()}
-                            <table className="print-footer-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid black', fontSize: '10pt' }}>
-                                <thead>
-                                    <tr style={{ background: '#f0f0f0' }}>
-                                        <th style={{ border: '1px solid black', width: '40px', padding: '5px' }}>Sl.No</th>
-                                        <th style={{ border: '1px solid black', padding: '5px' }}>Sub. Code</th>
-                                        <th style={{ border: '1px solid black', padding: '5px' }}>Sub. Acronym</th>
-                                        <th style={{ border: '1px solid black', padding: '5px' }}>Sub. Name</th>
-                                        <th style={{ border: '1px solid black', width: '40px', padding: '5px', textAlign: 'center' }}>
-                                            Hours<br /><div style={{ display: 'flex', borderTop: '1px solid black', marginTop: '2px' }}><div style={{ flex: 1, borderRight: '1px solid black' }}>W</div><div style={{ flex: 1 }}>S</div></div>
-                                        </th>
-                                        <th style={{ border: '1px solid black', padding: '5px' }}>Faculty Name</th>
-                                        <th style={{ border: '1px solid black', width: '50px', padding: '5px' }}>Dept.</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {uniqueSubjectList.map((item, idx) => (
-                                        <tr key={idx}>
-                                            <td style={{ border: '1px solid black', textAlign: 'center', padding: '4px' }}>{idx + 1}</td>
-                                            <td style={{ border: '1px solid black', fontWeight: 'bold', padding: '4px', textAlign: 'center' }}>{item.code}</td>
-                                            <td style={{ border: '1px solid black', textAlign: 'center', padding: '4px' }}>{item.acronym}</td>
-                                            <td style={{ border: '1px solid black', padding: '4px' }}>{item.name}</td>
-                                            <td style={{ border: '1px solid black', padding: '0' }}>
-                                                <div style={{ display: 'flex', height: '100%' }}>
-                                                    <div style={{ flex: 1, borderRight: '1px solid black', textAlign: 'center', padding: '4px' }}>{item.hoursW}</div>
-                                                    <div style={{ flex: 1, textAlign: 'center', padding: '4px' }}>{item.hoursS}</div>
-                                                </div>
-                                            </td>
-                                            <td style={{ border: '1px solid black', padding: '4px' }}>{item.staff}</td>
-                                            <td style={{ border: '1px solid black', textAlign: 'center', padding: '4px' }}>{item.dept}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                            <div style={{ marginTop: '50px', display: 'flex', justifyContent: 'space-between', padding: '0 20px', fontWeight: 'bold', fontSize: '11pt' }}>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div>Dept. TT I/C</div>
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div>HOD</div>
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div>TT Convener</div>
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div>PRINCIPAL</div>
-                                </div>
-                            </div>
-                        </>
-                    );
-                })()}
+                {isPrintingAll 
+                    ? Object.keys(schedule || {}).sort().flatMap(semKey => 
+                        Object.keys(schedule[semKey] || {}).sort().map(secKey => 
+                            renderPrintContent(schedule[semKey][secKey], semKey, secKey, `${semKey}-${secKey}`)
+                        )
+                    )
+                    : grids[selectedSectionView] && renderPrintContent(grids[selectedSectionView], semester, selectedSectionView, '0')
+                }
             </div>
         </div>
     );

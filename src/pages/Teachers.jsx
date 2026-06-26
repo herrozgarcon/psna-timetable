@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { Search, Filter, Plus, Trash2, Save } from 'lucide-react';
+import { Search, Filter, Plus, Trash2, Save, Edit2 } from 'lucide-react';
 import Modal from '../components/Modal';
 const Teachers = () => {
-    const { teachers, addTeachers, deleteTeachers, clearTeachers, addFacultyAccounts } = useData();
+    const { teachers, addTeachers, deleteTeachers, clearTeachers, addFacultyAccounts, setTeachers } = useData();
     const [search, setSearch] = useState('');
     const [filterSem, setFilterSem] = useState('All');
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const [editingTeacher, setEditingTeacher] = useState(null);
     const [newTeacher, setNewTeacher] = useState({
         name: '',
         dept: 'CSE',
@@ -17,19 +18,27 @@ const Teachers = () => {
     });
     const handleAddTeacher = () => {
         if (!newTeacher.name || !newTeacher.subjectCode) return;
-        addTeachers([{ ...newTeacher, id: Date.now().toString() }]);
-        const nameParts = newTeacher.name.trim().split(/\s+/);
-        const lastNameRaw = nameParts[nameParts.length - 1];
-        const handle = lastNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
-        addFacultyAccounts([{
-            id: Date.now().toString() + '_acc',
-            name: newTeacher.name,
-            email: `${handle}@psnacet.edu.in`,
-            password: handle,
-            dept: newTeacher.dept
-        }]);
-        alert(`Faculty Account Created!\n\nEmail: ${handle}@psnacet.edu.in\nPassword: ${handle}`);
+        
+        if (editingTeacher) {
+            const updatedTeachers = teachers.map(t => t.id === editingTeacher.id ? { ...newTeacher, id: t.id } : t);
+            setTeachers(updatedTeachers);
+        } else {
+            addTeachers([{ ...newTeacher, id: Date.now().toString() }]);
+            const nameParts = newTeacher.name.trim().split(/\s+/);
+            const lastNameRaw = nameParts[nameParts.length - 1];
+            const handle = lastNameRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
+            addFacultyAccounts([{
+                id: Date.now().toString() + '_acc',
+                name: newTeacher.name,
+                email: `${handle}@psnacet.edu.in`,
+                password: handle,
+                dept: newTeacher.dept
+            }]);
+            alert(`Faculty Account Created!\n\nEmail: ${handle}@psnacet.edu.in\nPassword: ${handle}`);
+        }
+        
         setIsAddOpen(false);
+        setEditingTeacher(null);
         setNewTeacher({ name: '', dept: 'CSE', semester: 'I', subjectCode: '', subjectName: '', section: 'A' });
     };
     const filtered = teachers.filter(t => {
@@ -65,9 +74,13 @@ const Teachers = () => {
                     }} style={{ color: 'white', marginRight: '1rem' }}>
                         <Trash2 size={18} /> Delete All
                     </button>
-                    <button className="btn btn-primary" onClick={() => setIsAddOpen(true)}>
-                        <Plus size={18} /> Add Teacher
-                    </button>
+                        <button className="btn" onClick={() => {
+                            setEditingTeacher(null);
+                            setNewTeacher({ name: '', dept: 'CSE', semester: 'I', subjectCode: '', subjectName: '', section: 'A' });
+                            setIsAddOpen(true);
+                        }}>
+                            <Plus size={18} /> Add Teacher
+                        </button>
                 </div>
             </div>
             <div className="card" style={{ padding: '0', display: 'flex', flexDirection: 'column' }}>
@@ -125,13 +138,26 @@ const Teachers = () => {
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>{t.subjectName}</div>
                                     </td>
                                     <td><span className="badge badge-outline">Section {t.section}</span></td>
-                                    <td style={{ textAlign: 'right' }}>
+                                    <td style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                        <button
+                                            className="btn-outline"
+                                            style={{ border: 'none', color: '#3b82f6', padding: '4px', cursor: 'pointer' }}
+                                            onClick={() => {
+                                                setEditingTeacher(t);
+                                                setNewTeacher(t);
+                                                setIsAddOpen(true);
+                                            }}
+                                            title="Edit Teacher"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
                                         <button
                                             className="btn-outline"
                                             style={{ border: 'none', color: 'var(--danger)', padding: '4px', cursor: 'pointer' }}
                                             onClick={() => {
                                                 if (window.confirm('Delete this teacher allocation?')) deleteTeachers(t.id);
                                             }}
+                                            title="Delete Teacher"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -143,7 +169,7 @@ const Teachers = () => {
                     </table>
                 </div>
             </div>
-            <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Add Teacher Allocation">
+            <Modal isOpen={isAddOpen} onClose={() => { setIsAddOpen(false); setEditingTeacher(null); }} title={editingTeacher ? "Edit Teacher Allocation" : "Add Teacher Allocation"}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div>
                         <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Faculty Name</label>
@@ -176,7 +202,7 @@ const Teachers = () => {
                         <input className="input-field" style={{ width: '100%' }} value={newTeacher.subjectName} onChange={e => setNewTeacher({ ...newTeacher, subjectName: e.target.value })} placeholder="e.g. Data Structures" />
                     </div>
                     <button className="btn btn-primary" onClick={handleAddTeacher} style={{ marginTop: '0.5rem' }}>
-                        <Save size={18} style={{ marginRight: 8 }} /> Save Allocation
+                        <Save size={18} style={{ marginRight: 8 }} /> {editingTeacher ? "Save Changes" : "Save Allocation"}
                     </button>
                 </div>
             </Modal>
