@@ -100,7 +100,7 @@ export const loadGeneralTimetable = async (departmentId, academicYear, semester)
 export const loadFacultyTimetable = async (facultyId) => {
     try {
         const { data, error } = await supabase
-            .from('faculty_timetable')
+            .from('general_timetable')
             .select('*')
             .eq('faculty_id', facultyId)
             .order('day', { ascending: true })
@@ -189,6 +189,10 @@ export const saveTimetable = async ({ departmentId, departmentName, semester, gr
 
     console.log(`[Persistence] Starting save process for Dept: ${departmentId}, Sem: ${semester}, Year: ${academicYear}`);
 
+    let totalFacultyFound = 0;
+    let facultyGenerated = 0;
+    let facultySkipped = 0;
+
     try {
         await deleteExistingTimetable(departmentId, academicYear, semester);
         console.log(`[Persistence] Deleted existing timetable rows.`);
@@ -232,14 +236,20 @@ export const saveTimetable = async ({ departmentId, departmentName, semester, gr
                         const isLab = activeCell.isLab || activeCell.duration > 1;
 
                         teacherNames.forEach(tName => {
+                            totalFacultyFound++;
                             const faculty = teachers.find(t => String(t.name).trim().toUpperCase() === tName.toUpperCase());
                             const facultyId = faculty ? faculty.id : tName;
+
+                            console.log(`[Debug] Faculty detected: ${tName} | Subject Code: ${activeCell.code} | Section: ${section} | Day: ${dayIdx} | Period: ${periodIdx} | Faculty ID: ${facultyId} | Faculty Name: ${tName}`);
 
                             // Validation - verify no undefined fields and UUID is used properly
                             if (!departmentId || !facultyId || dayIdx === undefined || periodIdx === undefined || !scheduleVersion) {
                                 console.warn("[Persistence] Skipping invalid row for faculty:", tName, "day:", dayIdx, "period:", periodIdx);
+                                facultySkipped++;
                                 return;
                             }
+                            
+                            facultyGenerated++;
 
                             const generalRowData = {
                                 department_id: departmentId,
@@ -291,11 +301,12 @@ export const saveTimetable = async ({ departmentId, departmentName, semester, gr
         });
 
         console.log(`[Persistence] Scheduler returned timetable. Processed grid elements.`);
+        console.log(`[Persistence] Total faculty found: ${totalFacultyFound} | Faculty actually generated: ${facultyGenerated} | Faculty skipped: ${facultySkipped}`);
         console.log(`[Persistence] Generated ${generalRows.length} general rows and ${facultyRows.length} faculty rows.`);
         console.log("First General Row:");
-        console.log(generalRows[0]);
+        if(generalRows.length > 0) console.log(generalRows[0]);
         console.log("First Faculty Row:");
-        console.log(facultyRows[0]);
+        if(facultyRows.length > 0) console.log(facultyRows[0]);
         
         await saveGeneralTimetable(generalRows);
         console.log(`[Persistence] Successfully inserted general timetable rows.`);
