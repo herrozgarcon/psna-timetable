@@ -249,11 +249,20 @@ const StaffTimetable = () => {
             .filter(t => t.toUpperCase() !== upperFaculty)
             .join('/');
 
+        // Resolve clean class name (remove General/GENERAL from class name to make it look clean)
+        const classDept = (!department || department.toUpperCase() === 'GENERAL') ? '' : department;
+        const classString = `${getCleanSemester(cell.semester)} ${classDept ? classDept + ' ' : ''}${cell.section}`;
+
         if (len === 1) {
             const isRed = isFixed(cell.displayCode, cell.section, dIdx, s);
             return (
-                <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
-                    {cell.displayCode}
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                    <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
+                        {cell.displayCode}
+                    </div>
+                    <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>
+                        {classString}
+                    </div>
                 </div>
             );
         }
@@ -270,29 +279,42 @@ const StaffTimetable = () => {
                         );
                     } else {
                         return (
-                            <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
-                                {cell.displayCode}
+                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                                <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                                <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{classString}</div>
                             </div>
                         );
                     }
                 } else {
                     return (
-                        <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
-                            {cell.displayCode}
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                            <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                            <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{classString}</div>
                         </div>
                     );
                 }
             } else { // Afternoon P5-P7
                 if (pos === 0) {
-                    return (
-                        <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
-                            {cell.displayCode}
-                        </div>
-                    );
+                    if (coFaculty) {
+                        return (
+                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                                <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                                <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{coFaculty}</div>
+                            </div>
+                        );
+                    } else {
+                        return (
+                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                                <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                                <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{classString}</div>
+                            </div>
+                        );
+                    }
                 } else {
                     return (
-                        <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
-                            {cell.displayCode}
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                            <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                            <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{classString}</div>
                         </div>
                     );
                 }
@@ -327,13 +349,19 @@ const StaffTimetable = () => {
                         </div>
                     );
                 } else if (pos === 2) {
-                    return '';
+                    return (
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                            <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                            <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{classString}</div>
+                        </div>
+                    );
                 }
             } else {
-                // If teaching alone, show course code in all periods of the block
+                // If teaching alone, show course code + class name in all periods of the block
                 return (
-                    <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>
-                        {cell.displayCode}
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-around' }}>
+                        <div style={{ color: isRed ? 'red' : 'black', fontWeight: 'bold', fontSize: '10pt' }}>{cell.displayCode}</div>
+                        <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>{classString}</div>
                     </div>
                 );
             }
