@@ -192,7 +192,7 @@ export const generateClassTimetable = (semester, section, rawSubjects, reservedS
                     if (s + duration > SLOTS) { conflictReasons.duration++; continue; }
                     if (pass === 0 && semesterLabSlots && semesterLabSlots[`${d}-${s}`]) { conflictReasons.room++; continue; }
                     if (reservedSlots[`${d}-${s}`] && reservedSlots[`${d}-${s}`].has('LAB_START') && pass < 2) { conflictReasons.room++; continue; }
-                    if (duration < 4 && s <= 3 && s + duration > 4 && pass < 3) { conflictReasons.duration++; continue; }
+                    if (s < 4 && s + duration > 4) { conflictReasons.duration++; continue; }
 
                     let free = true;
                     for (let k = 0; k < duration; k++) {

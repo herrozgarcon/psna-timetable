@@ -97,12 +97,30 @@ export const loadGeneralTimetable = async (departmentId, academicYear, semester)
     }
 };
 
-export const loadFacultyTimetable = async (facultyId) => {
+export const loadFacultyTimetable = async (facultyIdOrName) => {
     try {
-        const { data, error } = await supabase
-            .from('general_timetable')
-            .select('*')
-            .eq('faculty_id', facultyId)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(facultyIdOrName);
+        
+        let query = supabase.from('general_timetable').select('*');
+        if (isUuid) {
+            // Find the faculty name associated with this UUID in the timetable first
+            const { data: nameData } = await supabase
+                .from('general_timetable')
+                .select('faculty_name')
+                .eq('faculty_id', facultyIdOrName)
+                .limit(1);
+            
+            const fName = nameData && nameData[0] ? nameData[0].faculty_name : null;
+            if (fName) {
+                query = query.eq('faculty_name', fName);
+            } else {
+                query = query.eq('faculty_id', facultyIdOrName);
+            }
+        } else {
+            query = query.eq('faculty_name', facultyIdOrName);
+        }
+        
+        const { data, error } = await query
             .order('day', { ascending: true })
             .order('period', { ascending: true });
 

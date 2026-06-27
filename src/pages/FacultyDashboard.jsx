@@ -34,7 +34,7 @@ const FacultyDashboard = ({ facultyName, facultyId }) => {
                 if (isMounted) setDbSchedule([]);
                 return;
             }
-            const lookupId = facultyId || facultyName;
+            const lookupId = facultyName || facultyId;
             try {
                 const data = await loadFacultyTimetable(lookupId);
                 if (isMounted) setDbSchedule(data || []);
